@@ -46,6 +46,15 @@ def b2_authorize(applicationKeyId, applicationKeyValue):
     return auth
 
 
+def b2_upload_url(filePath, apiUrl, authToken, bucketId):
+    b2_get_upload_url = f'{apiUrl}/b2api/v2/b2_get_upload_url'
+    get_url_body = {'bucketId': bucketId}
+    get_url_headers = {'Authorization': authToken}
+    request = Request(b2_get_upload_url, data=json.dumps(get_url_body).encode('utf-8'), headers=get_url_headers)
+    with urlopen(request) as response:
+        uploadData = json.loads(response.read())
+    pprint(uploadData)
+
 def applyForFile(filePath, callback):
     excludes = ['.DS_Store', '.Trashes', '.fseventsd', '.Spotlight-V100']
 
@@ -70,6 +79,7 @@ def main() -> None:
     applyForFile(directory, _callback)
     auth = b2_authorize(keyId, keyValue)
 
+    uploadSettings = b2_upload_url('tempfile', auth['apiUrl'], auth['authorizationToken'], auth['allowed']['bucketId'])
 
 if __name__ == "__main__":
     main()
