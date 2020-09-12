@@ -92,7 +92,7 @@ def applyForFile(filesPath, callback):
         for name in files:
             if name not in excludes:
                 full_name = os.path.join(root, name)
-                callback(full_name)
+                callback(name)
 
 
 
