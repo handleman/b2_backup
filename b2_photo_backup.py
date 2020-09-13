@@ -95,10 +95,10 @@ def b2_upload_file_callback(filePathName):
     except HTTPError as err:
         # B2 Cloud sends 500,503 errors when need to re-establish upload connection (upload url and authenticationToken could be changed)
         if err.code in allowed_codes:
+            print('[ 503 error, reiastablishing connection... ]')
             uploadSettings = b2_get_upload_url(apiUrl, authToken, bucketId)
             uploadUrl = uploadSettings['uploadUrl']
             authTokenUpload = uploadSettings['authorizationToken']
-            print('[ 503 error, reiastablishing connection... ]')
             b2_upload_file_callback(filePathName)
     
 
