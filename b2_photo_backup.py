@@ -87,6 +87,7 @@ def b2_upload_file_callback(filePathName):
 
     request = Request(uploadUrl, data=file_data, headers=headers)
     try:
+        print(f'[ Upload in progress ]: {filePathName}')
         response = urlopen(request)
         upload_info = json.loads(response.read())
         response.close()
