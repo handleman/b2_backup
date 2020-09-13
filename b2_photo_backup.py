@@ -7,9 +7,14 @@ import hashlib
 import urllib.parse
 
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 
 from pprint import pprint
 
+# global vaiables
+uploadUrl = None
+authTokenUpload = None
+authToken = None
 
 def init_argparse() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -48,7 +53,7 @@ def b2_authorize(applicationKeyId, applicationKeyValue):
     return auth
 
 
-def b2_get_upload_url(filePath, apiUrl, authToken, bucketId):
+def b2_get_upload_url(apiUrl, authToken, bucketId):
     b2_get_upload_url = f'{apiUrl}/b2api/v2/b2_get_upload_url'
     get_url_body = {'bucketId': bucketId}
     get_url_headers = {'Authorization': authToken}
@@ -58,36 +63,45 @@ def b2_get_upload_url(filePath, apiUrl, authToken, bucketId):
     response.close()
     return uploadData
 
-def b2_upload_file_callback(uploadUrl, authToken):
-    def _callback(filePathName):
-        content_type = 'b2/x-auto'
-        file_path_name_encoded = urllib.parse.quote(filePathName)
+def b2_upload_file_callback(filePathName):
+    global uploadUrl, authTokenUpload
+    allowed_codes = [500, 503]
+    content_type = 'b2/x-auto'
+    file_path_name_encoded = urllib.parse.quote(filePathName)
 
-        # we trim backslash in order to create right directories structure on B2 Cloud
-        if file_path_name_encoded[0] == '/':
-            file_path_name_encoded = file_path_name_encoded[1:]
+    # we trim backslash in order to create right directories structure on B2 Cloud
+    if file_path_name_encoded[0] == '/':
+        file_path_name_encoded = file_path_name_encoded[1:]
 
-        with open(filePathName, 'br') as file:
-            file_data = file.read()
-        file.close()
-        file_hash = hashlib.sha1(file_data).hexdigest()
+    with open(filePathName, 'br') as file:
+        file_data = file.read()
+    file.close()
+    file_hash = hashlib.sha1(file_data).hexdigest()
 
-        headers = {
-            'Authorization': authToken,
-            'X-Bz-File-Name': file_path_name_encoded,
-            'Content-Type': content_type,
-            'X-Bz-Content-Sha1': file_hash
-        }
+    headers = {
+        'Authorization': authTokenUpload,
+        'X-Bz-File-Name': file_path_name_encoded,
+        'Content-Type': content_type,
+        'X-Bz-Content-Sha1': file_hash
+    }
 
-        request = Request(uploadUrl, data=file_data, headers=headers)
-
-        with urlopen(request) as response:
-            upload_info = json.loads(response.read())
+    request = Request(uploadUrl, data=file_data, headers=headers)
+    try:
+        response = urlopen(request)
+        upload_info = json.loads(response.read())
         response.close()
         file_name = upload_info['fileName']
         print(f'[ Uploaded Successfully ]: {file_name}')
+    except HTTPError as err:
+        # B2 Cloud sends 500,503 errors when need to re-establish upload connection (upload url and authenticationToken could be changed)
+        if err.code in allowed_codes:
+            uploadSettings = b2_get_upload_url(apiUrl, authToken, bucketId)
+            uploadUrl = uploadSettings['uploadUrl']
+            authTokenUpload = uploadSettings['authorizationToken']
+            print('[ 503 error, reiastablishing connection... ]')
+            b2_upload_file_callback(filePathName)
+    
 
-    return _callback
 
 
 def applyForFile(filesPath, callback):
@@ -102,6 +116,7 @@ def applyForFile(filesPath, callback):
 
 
 def main() -> None:
+    global authToken, uploadUrl, authTokenUpload
     parser = init_argparse()
     args = vars(parser.parse_args())
 
@@ -111,9 +126,14 @@ def main() -> None:
 
     auth = b2_authorize(keyId, keyValue)
 
-    uploadSettings = b2_get_upload_url('tempfile', auth['apiUrl'], auth['authorizationToken'], auth['allowed']['bucketId'])
+    apiUrl = auth['apiUrl']
+    authToken = auth['authorizationToken']
+    bucketId = auth['allowed']['bucketId']
+    uploadSettings = b2_get_upload_url(apiUrl, authToken, bucketId)
 
-    applyForFile(directory, b2_upload_file_callback(uploadSettings['uploadUrl'], uploadSettings['authorizationToken']))
+    uploadUrl = uploadSettings['uploadUrl']
+    authTokenUpload = uploadSettings['authorizationToken']
+    applyForFile(directory, b2_upload_file_callback)
 
     print('[ All files were successfully uploaded ]!')
 
