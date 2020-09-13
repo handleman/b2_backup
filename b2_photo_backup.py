@@ -62,6 +62,11 @@ def b2_upload_file_callback(uploadUrl, authToken):
     def _callback(filePathName):
         content_type = 'b2/x-auto'
         file_path_name_encoded = urllib.parse.quote(filePathName)
+
+        # we trim backslash in order to create right directories structure on B2 Cloud
+        if file_path_name_encoded[0] == '/':
+            file_path_name_encoded = file_path_name_encoded[1:]
+
         with open(filePathName, 'br') as file:
             file_data = file.read()
         file.close()
@@ -86,13 +91,13 @@ def b2_upload_file_callback(uploadUrl, authToken):
 
 
 def applyForFile(filesPath, callback):
-    excludes = ['.DS_Store', '.Trashes', '.fseventsd', '.Spotlight-V100']
+    excludes = ['.DS_Store', '.Trashes', '.fseventsd', '.Spotlight-V100', 'desktop.ini']
 
     for root, directories, files in os.walk(filesPath):
         for name in files:
             if name not in excludes:
                 full_name = os.path.join(root, name)
-                callback(name)
+                callback(full_name)
 
 
 
