@@ -16,6 +16,7 @@ uploadUrl = None
 authTokenUpload = None
 authToken = None
 apiUrl = None
+bucketId = None
 
 def init_argparse() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -118,7 +119,7 @@ def applyForFile(filesPath, callback):
 
 
 def main() -> None:
-    global authToken, uploadUrl, authTokenUpload, apiUrl
+    global authToken, uploadUrl, authTokenUpload, apiUrl, bucketId
     parser = init_argparse()
     args = vars(parser.parse_args())
 
