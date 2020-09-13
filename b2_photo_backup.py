@@ -15,6 +15,7 @@ from pprint import pprint
 uploadUrl = None
 authTokenUpload = None
 authToken = None
+apiUrl = None
 
 def init_argparse() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -117,7 +118,7 @@ def applyForFile(filesPath, callback):
 
 
 def main() -> None:
-    global authToken, uploadUrl, authTokenUpload
+    global authToken, uploadUrl, authTokenUpload, apiUrl
     parser = init_argparse()
     args = vars(parser.parse_args())
 
