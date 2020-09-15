@@ -1,22 +1,23 @@
 import argparse
 import os
+import sys
 import base64
 import json
 import urllib.request
 import hashlib
 import urllib.parse
-
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
-
-from pprint import pprint
+from typing import Callable
 
 # global vaiables
-uploadUrl = None
-authTokenUpload = None
-authToken = None
-apiUrl = None
-bucketId = None
+uploadUrl: str = None
+authTokenUpload: str = None
+authToken: str = None
+apiUrl: str = None
+bucketId: str = None
+# add Callable annotation
+
 
 def init_argparse() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -40,7 +41,7 @@ def init_argparse() -> argparse.ArgumentParser:
     return parser
 
 
-def b2_authorize(applicationKeyId, applicationKeyValue):
+def b2_authorize(applicationKeyId: str, applicationKeyValue: str) -> None:
     id_and_key = f'{applicationKeyId}:{applicationKeyValue}'
     id_and_key_base64 = base64.b64encode(
         id_and_key.encode('utf-8')).decode('utf-8')
@@ -55,17 +56,19 @@ def b2_authorize(applicationKeyId, applicationKeyValue):
     return auth
 
 
-def b2_get_upload_url(apiUrl, authToken, bucketId):
+def b2_get_upload_url(apiUrl: str, authToken: str, bucketId: str) -> dict:
     b2_get_upload_url = f'{apiUrl}/b2api/v2/b2_get_upload_url'
     get_url_body = {'bucketId': bucketId}
     get_url_headers = {'Authorization': authToken}
-    request = Request(b2_get_upload_url, data=json.dumps(get_url_body).encode('utf-8'), headers=get_url_headers)
+    request = Request(b2_get_upload_url, data=json.dumps(
+        get_url_body).encode('utf-8'), headers=get_url_headers)
     with urlopen(request) as response:
         uploadData = json.loads(response.read())
     response.close()
     return uploadData
 
-def b2_upload_file_callback(filePathName):
+
+def b2_upload_file_callback(filePathName: str) -> None:
     global uploadUrl, authTokenUpload
     allowed_codes = [500, 503]
     content_type = 'b2/x-auto'
@@ -78,6 +81,7 @@ def b2_upload_file_callback(filePathName):
     with open(filePathName, 'br') as file:
         file_data = file.read()
     file.close()
+
     file_hash = hashlib.sha1(file_data).hexdigest()
 
     headers = {
@@ -89,12 +93,11 @@ def b2_upload_file_callback(filePathName):
 
     request = Request(uploadUrl, data=file_data, headers=headers)
     try:
-        print(f'[ Upload in progress ]: {filePathName}')
+        print(f'[ Upload in progress ]: {filePathName}', end='')
         response = urlopen(request)
         upload_info = json.loads(response.read())
         response.close()
-        file_name = upload_info['fileName']
-        print(f'[ Uploaded Successfully ]: {file_name}')
+        sys.stdout.write(' <- [DONE] \n')
     except HTTPError as err:
         # B2 Cloud sends 500,503 errors when need to re-establish upload connection (upload url and authenticationToken could be changed)
         if err.code in allowed_codes:
@@ -103,19 +106,17 @@ def b2_upload_file_callback(filePathName):
             uploadUrl = uploadSettings['uploadUrl']
             authTokenUpload = uploadSettings['authorizationToken']
             b2_upload_file_callback(filePathName)
-    
 
 
-
-def applyForFile(filesPath, callback):
-    excludes = ['.DS_Store', '.Trashes', '.fseventsd', '.Spotlight-V100', 'desktop.ini']
+def applyForFile(filesPath: str, callback: Callable[[str], None]) -> None:
+    excludes = ['.DS_Store', '.Trashes', '.fseventsd',
+                '.Spotlight-V100', 'desktop.ini']
 
     for root, directories, files in os.walk(filesPath):
         for name in files:
             if name not in excludes:
                 full_name = os.path.join(root, name)
                 callback(full_name)
-
 
 
 def main() -> None:
