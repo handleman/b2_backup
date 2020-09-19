@@ -3,7 +3,6 @@ import os
 import sys
 import base64
 import json
-import urllib.request
 import hashlib
 import urllib.parse
 from urllib.request import Request, urlopen
@@ -41,7 +40,7 @@ def init_argparse() -> argparse.ArgumentParser:
     return parser
 
 
-def b2_authorize(applicationKeyId: str, applicationKeyValue: str) -> None:
+def b2_authorize(applicationKeyId: str, applicationKeyValue: str) -> dict:
     id_and_key = f'{applicationKeyId}:{applicationKeyValue}'
     id_and_key_base64 = base64.b64encode(
         id_and_key.encode('utf-8')).decode('utf-8')
