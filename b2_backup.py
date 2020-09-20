@@ -69,6 +69,7 @@ def b2_get_upload_url(apiUrl: str, authToken: str, bucketId: str) -> dict:
 
 def b2_upload_file_callback(filePathName: str) -> None:
     global uploadUrl, authTokenUpload
+    print(f'[ Upload in progress ]: {filePathName}', end='...', flush=True)
     allowed_codes = [500, 503]
     content_type = 'b2/x-auto'
     file_path_name_encoded = urllib.parse.quote(filePathName)
@@ -92,11 +93,10 @@ def b2_upload_file_callback(filePathName: str) -> None:
 
     request = Request(uploadUrl, data=file_data, headers=headers)
     try:
-        print(f'[ Upload in progress ]: {filePathName}', end='')
         response = urlopen(request)
         upload_info = json.loads(response.read())
         response.close()
-        sys.stdout.write(' <- [DONE] \n')
+        print('<- [DONE] ')
     except HTTPError as err:
         # B2 Cloud sends 500,503 errors when need to re-establish upload connection (upload url and authenticationToken could be changed)
         if err.code in allowed_codes:
