@@ -98,6 +98,7 @@ def b2_upload_file_callback(filePathName: str) -> None:
         response.close()
         print('<- [DONE] ')
     except HTTPError as err:
+        print('<- [FAILED] ')
         # B2 Cloud sends 500,503 errors when need to re-establish upload connection (upload url and authenticationToken could be changed)
         if err.code in allowed_codes:
             print('[ 503 error, reiastablishing connection... ]')
