@@ -1,6 +1,5 @@
 import argparse
 import os
-import sys
 import base64
 import json
 import hashlib
@@ -94,7 +93,6 @@ def b2_upload_file_callback(filePathName: str) -> None:
     request = Request(uploadUrl, data=file_data, headers=headers)
     try:
         response = urlopen(request)
-        upload_info = json.loads(response.read())
         response.close()
         print('<- [DONE] ')
     except HTTPError as err:
