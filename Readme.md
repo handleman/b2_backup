@@ -21,4 +21,4 @@ python3 b2_backup.py -k <KEY_ID> -a <APP_KEY> <PATH_TO_FILES>
 ```
 **where:**
 * `<PATH_TO_FILES>` - relative to script folder or absolute path for directory you want to backup to B2 Cloud storage.
-* `<APPLE_KEY>` and `<KEY_ID>` - access keys which you would receive on "App Keys" tab in your user area of B2 Cloud service. Script needs it for authentication purposes.
+* `<APP_KEY>` and `<KEY_ID>` - access keys which you would receive on "App Keys" tab in your user area of B2 Cloud service. Script needs it for authentication purposes.
