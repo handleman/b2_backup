@@ -17,7 +17,7 @@ Also you need to get your **"Key ID"** and **"Application Key"** in order to be 
 It is a shell script with given path and **two** required parameters:
  
 ```bash
-python3 b2_backup.py -k <KEY_ID> -a <APPLE_KEY> <PATH_TO_FILES>
+python3 b2_backup.py -k <KEY_ID> -a <APP_KEY> <PATH_TO_FILES>
 ```
 **where:**
 * `<PATH_TO_FILES>` - relative to script folder or absolute path for directory you want to backup to B2 Cloud storage.
