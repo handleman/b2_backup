@@ -108,7 +108,7 @@ def b2_upload_file_callback(filePathName: str) -> None:
 
 def applyForFile(filesPath: str, callback: Callable[[str], None]) -> None:
     excludes = ['.DS_Store', '.Trashes', '.fseventsd',
-                '.Spotlight-V100', 'desktop.ini']
+                '.Spotlight-V100', 'desktop.ini', 'Desktop.ini']
 
     for root, directories, files in os.walk(filesPath):
         for name in files:
