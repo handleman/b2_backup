@@ -16,7 +16,7 @@ apiUrl: str = None
 bucketId: str = None
 
 
-# todo: add upload huge 
+# todo: add upload huge
 
 
 def init_argparse() -> argparse.ArgumentParser:
@@ -55,6 +55,27 @@ def b2_authorize(applicationKeyId: str, applicationKeyValue: str) -> dict:
     response.close()
     return auth
 
+# request for upload by chuncks
+
+
+def b2_start_large_file(apiUrl: str, authToken: str, bucketId: str, fileName: str, fileHash: str) -> dict:
+    contentType = "b2/x-auto"  # Content Type of the file
+    large_file_url = f'{apiUrl}/b2api/v2/b2_start_large_file'
+    large_file_headers = {'Authorization': authToken}
+    large_file_request_body = {'fileName': fileName, 'contentType': contentType,
+                               'bucketId': bucketId, 'fileInfo': {'large_file_sha1': fileHash}}
+
+    request = Request(large_file_url, data=json.dumps(
+        large_file_request_body).encode('utf-8'), headers=large_file_headers)
+
+    try:
+        with urlopen(request) as response:
+            response_data = response.read()
+        response.close()
+        return json.loads(response_data)
+    except HTTPError as err:
+        print(f'err.: {err}')
+
 
 def b2_get_upload_url(apiUrl: str, authToken: str, bucketId: str) -> dict:
     b2_get_upload_url = f'{apiUrl}/b2api/v2/b2_get_upload_url'
@@ -69,8 +90,9 @@ def b2_get_upload_url(apiUrl: str, authToken: str, bucketId: str) -> dict:
 
 # todo: add b2_get_upload_part_url
 
+
 def b2_upload_file_callback(filePathName: str) -> None:
-    global uploadUrl, authTokenUpload
+    global uploadUrl, authTokenUpload, bucketId
     print(f'[ Upload in progress ]: {filePathName}', end='...', flush=True)
     allowed_codes = [500, 503]
     content_type = 'b2/x-auto'
@@ -111,8 +133,19 @@ def b2_upload_file_callback(filePathName: str) -> None:
 
 # make b2_upload_large_file_callback
 def b2_upload_large_file_callback(filePathName: str) -> None:
-    fileSize = os.path.getsize(filePathName);
-    print(f' file {filePathName} with size of {fileSize} bytes is HUGE FILE')
+    global authToken, bucketId, apiUrl
+    with open(filePathName, 'br') as file:
+        hash = hashlib.sha1()
+        while chunk := file.read(131072):
+            hash.update(chunk)
+
+    fileHash = hash.hexdigest()
+
+    print(
+        f'File: {filePathName}, authToken: {authToken}, bucketId: {bucketId}, fileHash: {fileHash}')
+
+    uploadSettings = b2_start_large_file(
+        apiUrl, authToken, bucketId, filePathName, fileHash)
 
 # todo: make it decide which callback to call ( usual or for huge file)
 
@@ -120,14 +153,14 @@ def b2_upload_large_file_callback(filePathName: str) -> None:
 def applyForFile(filesPath: str, small_file_callback: Callable[[str], None], huge_file_callback: Callable[[str], None]) -> None:
     excludes = ['.DS_Store', '.Trashes', '.fseventsd',
                 '.Spotlight-V100', 'desktop.ini', 'Desktop.ini']
-    size_delimeter = 2147483647 # ~ 2GiB maximum file size restriction
+    size_delimeter = 2147483647  # ~ 2GiB maximum file size restriction
 
     for root, directories, files in os.walk(filesPath):
         for name in files:
             if name not in excludes:
                 full_name = os.path.join(root, name)
                 fileSize = os.path.getsize(full_name)
-                if fileSize < size_delimeter: 
+                if fileSize < size_delimeter:
                     small_file_callback(full_name)
                 else:
                     huge_file_callback(full_name)
