@@ -14,7 +14,9 @@ authTokenUpload: str = None
 authToken: str = None
 apiUrl: str = None
 bucketId: str = None
-# add Callable annotation
+
+
+# todo: add upload huge 
 
 
 def init_argparse() -> argparse.ArgumentParser:
@@ -65,6 +67,7 @@ def b2_get_upload_url(apiUrl: str, authToken: str, bucketId: str) -> dict:
     response.close()
     return uploadData
 
+# todo: add b2_get_upload_part_url
 
 def b2_upload_file_callback(filePathName: str) -> None:
     global uploadUrl, authTokenUpload
@@ -106,15 +109,28 @@ def b2_upload_file_callback(filePathName: str) -> None:
             b2_upload_file_callback(filePathName)
 
 
-def applyForFile(filesPath: str, callback: Callable[[str], None]) -> None:
+# make b2_upload_large_file_callback
+def b2_upload_large_file_callback(filePathName: str) -> None:
+    fileSize = os.path.getsize(filePathName);
+    print(f' file {filePathName} with size of {fileSize} bytes is HUGE FILE')
+
+# todo: make it decide which callback to call ( usual or for huge file)
+
+
+def applyForFile(filesPath: str, small_file_callback: Callable[[str], None], huge_file_callback: Callable[[str], None]) -> None:
     excludes = ['.DS_Store', '.Trashes', '.fseventsd',
                 '.Spotlight-V100', 'desktop.ini', 'Desktop.ini']
+    size_delimeter = 2147483647 # ~ 2GiB maximum file size restriction
 
     for root, directories, files in os.walk(filesPath):
         for name in files:
             if name not in excludes:
                 full_name = os.path.join(root, name)
-                callback(full_name)
+                fileSize = os.path.getsize(full_name)
+                if fileSize < size_delimeter: 
+                    small_file_callback(full_name)
+                else:
+                    huge_file_callback(full_name)
 
 
 def main() -> None:
@@ -135,7 +151,9 @@ def main() -> None:
 
     uploadUrl = uploadSettings['uploadUrl']
     authTokenUpload = uploadSettings['authorizationToken']
-    applyForFile(directory, b2_upload_file_callback)
+    # todo: pass b2_upload_large_file_callback
+    applyForFile(directory, b2_upload_file_callback,
+                 b2_upload_large_file_callback)
 
     print('[ All files were successfully uploaded ]!')
 
