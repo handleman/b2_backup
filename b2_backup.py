@@ -17,9 +17,8 @@ bucketId: str = None
 
 
 # todo: add upload huge
-# todo: refactor requset repeated parts
 
-def _request_data(url: str, headers: dict, body: dict or None) -> dict:
+def _request_data(url: str, headers: dict, body={}) -> dict:
     request = Request(url, data=json.dumps(
         body).encode('utf-8'), headers=headers)
 
@@ -62,11 +61,7 @@ def b2_authorize(applicationKeyId: str, applicationKeyValue: str) -> dict:
     headers = {'Authorization': basic_auth_string}
     b2_auth_url = 'https://api.backblazeb2.com/b2api/v2/b2_authorize_account'
 
-    request = Request(b2_auth_url, headers=headers)
-    with urlopen(request) as response:
-        auth = json.loads(response.read())
-    response.close()
-    return auth
+    return _request_data(b2_auth_url, headers)
 
 # request for upload by chuncks
 
@@ -78,28 +73,15 @@ def b2_start_large_file(apiUrl: str, authToken: str, bucketId: str, fileName: st
     large_file_request_body = {'fileName': fileName, 'contentType': contentType,
                                'bucketId': bucketId, 'fileInfo': {'large_file_sha1': fileHash}}
 
-    request = Request(large_file_url, data=json.dumps(
-        large_file_request_body).encode('utf-8'), headers=large_file_headers)
-
-    try:
-        with urlopen(request) as response:
-            response_data = response.read()
-        response.close()
-        return json.loads(response_data)
-    except HTTPError as err:
-        print(f'err.: {err}')
+    return _request_data(large_file_url, large_file_headers, large_file_request_body)
 
 
 def b2_get_upload_url(apiUrl: str, authToken: str, bucketId: str) -> dict:
     b2_get_upload_url = f'{apiUrl}/b2api/v2/b2_get_upload_url'
     get_url_body = {'bucketId': bucketId}
     get_url_headers = {'Authorization': authToken}
-    request = Request(b2_get_upload_url, data=json.dumps(
-        get_url_body).encode('utf-8'), headers=get_url_headers)
-    with urlopen(request) as response:
-        uploadData = json.loads(response.read())
-    response.close()
-    return uploadData
+
+    return _request_data(b2_get_upload_url, get_url_headers, get_url_body)
 
 
 def b2_get_upload_part_url(apiUrl: str, authToken: str, fileId: str) -> dict:
