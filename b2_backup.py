@@ -17,6 +17,19 @@ bucketId: str = None
 
 
 # todo: add upload huge
+# todo: refactor requset repeated parts
+
+def _request_data(url: str, headers: dict, body: dict or None) -> dict:
+    request = Request(url, data=json.dumps(
+        body).encode('utf-8'), headers=headers)
+
+    try:
+        with urlopen(request) as response:
+            response_data = response.read()
+        response.close()
+        return json.loads(response_data)
+    except HTTPError as err:
+        print(f'err.: {err}')
 
 
 def init_argparse() -> argparse.ArgumentParser:
@@ -88,6 +101,14 @@ def b2_get_upload_url(apiUrl: str, authToken: str, bucketId: str) -> dict:
     response.close()
     return uploadData
 
+
+def b2_get_upload_part_url(apiUrl: str, authToken: str, fileId: str) -> dict:
+    part_file_url = f'{apiUrl}/b2api/v2/b2_get_upload_part_url'
+    part_file_headers = {'Authorization': authToken}
+    part_file_request_body = {'fileId': fileId}
+
+    return _request_data(part_file_url, part_file_headers, part_file_request_body)
+
 # todo: add b2_get_upload_part_url
 
 
@@ -141,11 +162,13 @@ def b2_upload_large_file_callback(filePathName: str) -> None:
 
     fileHash = hash.hexdigest()
 
-    print(
-        f'File: {filePathName}, authToken: {authToken}, bucketId: {bucketId}, fileHash: {fileHash}')
-
-    uploadSettings = b2_start_large_file(
+    startLargeFileSettings = b2_start_large_file(
         apiUrl, authToken, bucketId, filePathName, fileHash)
+
+    fileId = startLargeFileSettings['fileId']
+
+    uploadLargeFileSettings = b2_get_upload_part_url(apiUrl, authToken, fileId)
+
 
 
 def applyForFile(filesPath: str, small_file_callback: Callable[[str], None], huge_file_callback: Callable[[str], None]) -> None:
