@@ -147,8 +147,6 @@ def b2_upload_large_file_callback(filePathName: str) -> None:
     uploadSettings = b2_start_large_file(
         apiUrl, authToken, bucketId, filePathName, fileHash)
 
-# todo: make it decide which callback to call ( usual or for huge file)
-
 
 def applyForFile(filesPath: str, small_file_callback: Callable[[str], None], huge_file_callback: Callable[[str], None]) -> None:
     excludes = ['.DS_Store', '.Trashes', '.fseventsd',
@@ -184,7 +182,6 @@ def main() -> None:
 
     uploadUrl = uploadSettings['uploadUrl']
     authTokenUpload = uploadSettings['authorizationToken']
-    # todo: pass b2_upload_large_file_callback
     applyForFile(directory, b2_upload_file_callback,
                  b2_upload_large_file_callback)
 
