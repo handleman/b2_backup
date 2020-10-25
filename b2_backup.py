@@ -18,9 +18,12 @@ bucketId: str = None
 
 # todo: add upload huge
 
-def _request_data(url: str, headers: dict, body={}) -> dict:
-    request = Request(url, data=json.dumps(
-        body).encode('utf-8'), headers=headers)
+def _request_data(url: str, headers: dict, body={}, raw=False) -> dict:
+    if raw:
+        request = Request(url, data=body, headers=headers)
+    else:
+        request = Request(url, data=json.dumps(
+            body).encode('utf-8'), headers=headers)
 
     try:
         with urlopen(request) as response:
@@ -91,8 +94,41 @@ def b2_get_upload_part_url(apiUrl: str, authToken: str, fileId: str) -> dict:
 
     return _request_data(part_file_url, part_file_headers, part_file_request_body)
 
-# todo: add b2_get_upload_part_url
 
+def b2_upload_part(apiUrl: str, authToken: str, fileName: str, fileSize: int) -> list:
+    chunk_size = 536870912  # ~ 500 MiB
+    total_bytes_sent = 0
+    part_no = 1
+    part_sha1_array = []
+    part_size = chunk_size
+    parts_deploy_status = []
+
+    # todo: add recursive call to handle 503 error
+    print(f'[ Upload in progress ]: {fileName} total file size : {fileSize}')
+    with open(fileName, 'br') as file:
+        while chunk := file.read(part_size):
+            if(total_bytes_sent < fileSize):
+                residue = fileSize - total_bytes_sent
+                if(residue < chunk_size):
+                    part_size = residue
+                print(
+                    f'[PARTIAL UPLOAD] chunk # {part_no}, size: {part_size}  in progress', end='...', flush=True)
+                hash = hashlib.sha1(chunk).hexdigest()
+                part_sha1_array.append(hash)
+
+                headers = {
+                    'Authorization': authToken,
+                    'X-Bz-Part-Number': part_no,
+                    'Content-Length': part_size,
+                    'X-Bz-Content-Sha1': hash
+                }
+                deploy_status = _request_data(apiUrl, headers, chunk, True)
+                parts_deploy_status.append(deploy_status)
+                total_bytes_sent = total_bytes_sent + part_size
+                print(f'<- total bytes sent: {total_bytes_sent} - [DONE]')
+                part_no += 1
+
+    return parts_deploy_status
 
 def b2_upload_file_callback(filePathName: str) -> None:
     global uploadUrl, authTokenUpload, bucketId
@@ -135,7 +171,7 @@ def b2_upload_file_callback(filePathName: str) -> None:
 
 
 # make b2_upload_large_file_callback
-def b2_upload_large_file_callback(filePathName: str) -> None:
+def b2_upload_large_file_callback(filePathName: str, fileSize: int) -> None:
     global authToken, bucketId, apiUrl
     with open(filePathName, 'br') as file:
         hash = hashlib.sha1()
@@ -151,6 +187,11 @@ def b2_upload_large_file_callback(filePathName: str) -> None:
 
     uploadLargeFileSettings = b2_get_upload_part_url(apiUrl, authToken, fileId)
 
+    uploadPartUrl = uploadLargeFileSettings['uploadUrl']
+    uploadPartToken = uploadLargeFileSettings['authorizationToken']
+
+    fileInfo = b2_upload_part(
+        uploadPartUrl, uploadPartToken, filePathName, fileSize)
 
 
 def applyForFile(filesPath: str, small_file_callback: Callable[[str], None], huge_file_callback: Callable[[str], None]) -> None:
@@ -166,7 +207,7 @@ def applyForFile(filesPath: str, small_file_callback: Callable[[str], None], hug
                 if fileSize < size_delimeter:
                     small_file_callback(full_name)
                 else:
-                    huge_file_callback(full_name)
+                    huge_file_callback(full_name, fileSize)
 
 
 def main() -> None:
