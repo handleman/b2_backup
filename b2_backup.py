@@ -18,8 +18,6 @@ apiUrl: str = None
 bucketId: str = None
 
 
-# todo: add upload huge
-
 def _request_data(url: str, headers: dict, body={}) -> dict:
     request = Request(url, data=json.dumps(
         body).encode('utf-8'), headers=headers)
@@ -31,6 +29,8 @@ def _request_data(url: str, headers: dict, body={}) -> dict:
         return json.loads(response_data)
     except HTTPError as err:
         print(f'err.: {err}')
+
+# todo: apply this method to simple usual upload
 
 
 def _send_file(url: str, headers: dict, body: bytes, errorCallback: Callable[[dict, bytes], dict]) -> dict:
