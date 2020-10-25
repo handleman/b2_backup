@@ -1,4 +1,6 @@
 import argparse
+from array import array
+from hashlib import sha1
 import os
 import base64
 import json
@@ -90,6 +92,16 @@ def b2_start_large_file(apiUrl: str, authToken: str, bucketId: str, fileName: st
     return _request_data(large_file_url, large_file_headers, large_file_request_body)
 
 
+def b2_finish_large_file(apiUrl: str, authToken: str, fileId: str, sha1: array) -> dict:
+    finish_large_url = f'{apiUrl}/b2api/v2/b2_finish_large_file'
+    finish_large_headers = {'Authorization': authToken}
+    finish_large_body = {
+        'fileId': fileId,
+        'partSha1Array': sha1
+    }
+    return _request_data(finish_large_url, finish_large_headers, finish_large_body)
+
+
 def b2_get_upload_url(apiUrl: str, authToken: str, bucketId: str) -> dict:
     b2_get_upload_url = f'{apiUrl}/b2api/v2/b2_get_upload_url'
     get_url_body = {'bucketId': bucketId}
@@ -125,9 +137,6 @@ def b2_upload_part(apiUrlPart: str, authTokenPart: str, fileName: str, fileSize:
         headers['Authorization'] = uploadPartToken
         return _send_file(uploadPartUrl, headers, chunk, _retry_upload)
 
-
-
-    # todo: add recursive call to handle 503 error
     print(f'[ Upload in progress ]: {fileName} total file size : {fileSize}')
     with open(fileName, 'br') as file:
         while chunk := file.read(part_size):
@@ -154,7 +163,8 @@ def b2_upload_part(apiUrlPart: str, authTokenPart: str, fileName: str, fileSize:
                 print(f'<- total bytes sent: {total_bytes_sent} - [DONE]')
                 part_no += 1
 
-    return parts_deploy_status
+    return {'deploy_status': parts_deploy_status, 'sha1': part_sha1_array}
+
 
 def b2_upload_file_callback(filePathName: str) -> None:
     global uploadUrl, authTokenUpload, bucketId
@@ -218,6 +228,11 @@ def b2_upload_large_file_callback(filePathName: str, fileSize: int) -> None:
 
     fileInfo = b2_upload_part(
         uploadPartUrl, uploadPartToken, filePathName, fileSize, fileId)
+    sha1Array = fileInfo['sha1']
+
+    uploadStatus = b2_finish_large_file(apiUrl, authToken, fileId, sha1Array)
+    print(f'[ UPLOAD DONE ]: for {filePathName}')
+    print(uploadStatus)
 
 
 def applyForFile(filesPath: str, small_file_callback: Callable[[str], None], huge_file_callback: Callable[[str], None]) -> None:
