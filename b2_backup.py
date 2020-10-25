@@ -18,12 +18,9 @@ bucketId: str = None
 
 # todo: add upload huge
 
-def _request_data(url: str, headers: dict, body={}, raw=False) -> dict:
-    if raw:
-        request = Request(url, data=body, headers=headers)
-    else:
-        request = Request(url, data=json.dumps(
-            body).encode('utf-8'), headers=headers)
+def _request_data(url: str, headers: dict, body={}) -> dict:
+    request = Request(url, data=json.dumps(
+        body).encode('utf-8'), headers=headers)
 
     try:
         with urlopen(request) as response:
@@ -32,6 +29,20 @@ def _request_data(url: str, headers: dict, body={}, raw=False) -> dict:
         return json.loads(response_data)
     except HTTPError as err:
         print(f'err.: {err}')
+
+
+def _send_file(url: str, headers: dict, body: bytes, errorCallback: Callable[[dict, bytes], dict]) -> dict:
+    request = Request(url, data=body, headers=headers)
+    allowed_codes = [500, 503, 401]
+    try:
+        with urlopen(request) as response:
+            response_data = response.read()
+        response.close()
+        return json.loads(response_data)
+    except HTTPError as err:
+        if err.code in allowed_codes:
+            print('[ HTTPError, reiastablishing connection... ]')
+            errorCallback(headers, body)
 
 
 def init_argparse() -> argparse.ArgumentParser:
@@ -95,13 +106,26 @@ def b2_get_upload_part_url(apiUrl: str, authToken: str, fileId: str) -> dict:
     return _request_data(part_file_url, part_file_headers, part_file_request_body)
 
 
-def b2_upload_part(apiUrl: str, authToken: str, fileName: str, fileSize: int) -> list:
+def b2_upload_part(apiUrlPart: str, authTokenPart: str, fileName: str, fileSize: int, fileId: str) -> list:
+    global apiUrl, authToken
     chunk_size = 536870912  # ~ 500 MiB
     total_bytes_sent = 0
     part_no = 1
     part_sha1_array = []
     part_size = chunk_size
     parts_deploy_status = []
+
+    def _retry_upload(headers: dict, chunk: bytes) -> dict:
+        uploadLargeFileSettings = b2_get_upload_part_url(
+            apiUrl, authToken, fileId)
+
+        uploadPartUrl = uploadLargeFileSettings['uploadUrl']
+        uploadPartToken = uploadLargeFileSettings['authorizationToken']
+
+        headers['Authorization'] = uploadPartToken
+        return _send_file(uploadPartUrl, headers, chunk, _retry_upload)
+
+
 
     # todo: add recursive call to handle 503 error
     print(f'[ Upload in progress ]: {fileName} total file size : {fileSize}')
@@ -117,12 +141,14 @@ def b2_upload_part(apiUrl: str, authToken: str, fileName: str, fileSize: int) ->
                 part_sha1_array.append(hash)
 
                 headers = {
-                    'Authorization': authToken,
+                    'Authorization': authTokenPart,
                     'X-Bz-Part-Number': part_no,
                     'Content-Length': part_size,
                     'X-Bz-Content-Sha1': hash
                 }
-                deploy_status = _request_data(apiUrl, headers, chunk, True)
+
+                deploy_status = _send_file(
+                    apiUrlPart, headers, chunk, _retry_upload)
                 parts_deploy_status.append(deploy_status)
                 total_bytes_sent = total_bytes_sent + part_size
                 print(f'<- total bytes sent: {total_bytes_sent} - [DONE]')
@@ -191,7 +217,7 @@ def b2_upload_large_file_callback(filePathName: str, fileSize: int) -> None:
     uploadPartToken = uploadLargeFileSettings['authorizationToken']
 
     fileInfo = b2_upload_part(
-        uploadPartUrl, uploadPartToken, filePathName, fileSize)
+        uploadPartUrl, uploadPartToken, filePathName, fileSize, fileId)
 
 
 def applyForFile(filesPath: str, small_file_callback: Callable[[str], None], huge_file_callback: Callable[[str], None]) -> None:
