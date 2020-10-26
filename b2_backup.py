@@ -48,6 +48,7 @@ def _send_file(url: str, headers: dict, body: bytes, errorCallback: Callable[[di
         with urlopen(request) as response:
             response_data = response.read()
         response.close()
+        print('<- [DONE] ')
         return json.loads(response_data)
     except HTTPError as err:
         if err.code in allowed_codes:
@@ -176,10 +177,18 @@ def b2_upload_part(apiUrlPart: str, authTokenPart: str, fileName: str, fileSize:
 
 def b2_upload_file_callback(filePathName: str) -> None:
     global uploadUrl, authTokenUpload, bucketId
-    print(f'[ Upload in progress ]: {filePathName}', end='...', flush=True)
-    allowed_codes = [500, 503]
     content_type = 'b2/x-auto'
 
+    def _retry_upload(headers: dict, body: bytes) -> dict:
+        global uploadUrl, authTokenUpload, bucketId
+        uploadSettings = b2_get_upload_url(apiUrl, authToken, bucketId)
+        uploadUrl = uploadSettings['uploadUrl']
+        authTokenUpload = uploadSettings['authorizationToken']
+
+        headers['Authorization'] = authTokenUpload
+        return _send_file(uploadUrl, headers, body, _retry_upload)
+
+    print(f'[ Upload in progress ]: {filePathName}', end='...', flush=True)
     with open(filePathName, 'br') as file:
         file_data = file.read()
     file.close()
@@ -193,20 +202,7 @@ def b2_upload_file_callback(filePathName: str) -> None:
         'X-Bz-Content-Sha1': file_hash
     }
 
-    request = Request(uploadUrl, data=file_data, headers=headers)
-    try:
-        response = urlopen(request)
-        response.close()
-        print('<- [DONE] ')
-    except HTTPError as err:
-        print('<- [FAILED] ')
-        # B2 Cloud sends 500,503 errors when need to re-establish upload connection (upload url and authenticationToken could be changed)
-        if err.code in allowed_codes:
-            print('[ 503 error, reiastablishing connection... ]')
-            uploadSettings = b2_get_upload_url(apiUrl, authToken, bucketId)
-            uploadUrl = uploadSettings['uploadUrl']
-            authTokenUpload = uploadSettings['authorizationToken']
-            b2_upload_file_callback(filePathName)
+    _send_file(uploadUrl, headers, file_data, _retry_upload)
 
 
 # make b2_upload_large_file_callback
