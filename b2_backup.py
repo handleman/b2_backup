@@ -17,6 +17,14 @@ authToken: str = None
 apiUrl: str = None
 bucketId: str = None
 
+def _prepare_file_name(path: str) -> str:
+    full_name_encoded = urllib.parse.quote(path)
+     # we trim backslash in order to create right directories structure on B2 Cloud
+    if full_name_encoded[0] == '/':
+        full_name_encoded = full_name_encoded[1:]
+    return full_name_encoded
+    
+
 
 def _request_data(url: str, headers: dict, body={}) -> dict:
     request = Request(url, data=json.dumps(
@@ -86,7 +94,7 @@ def b2_start_large_file(apiUrl: str, authToken: str, bucketId: str, fileName: st
     contentType = "b2/x-auto"  # Content Type of the file
     large_file_url = f'{apiUrl}/b2api/v2/b2_start_large_file'
     large_file_headers = {'Authorization': authToken}
-    large_file_request_body = {'fileName': fileName, 'contentType': contentType,
+    large_file_request_body = {'fileName': _prepare_file_name(fileName), 'contentType': contentType,
                                'bucketId': bucketId, 'fileInfo': {'large_file_sha1': fileHash}}
 
     return _request_data(large_file_url, large_file_headers, large_file_request_body)
@@ -171,11 +179,6 @@ def b2_upload_file_callback(filePathName: str) -> None:
     print(f'[ Upload in progress ]: {filePathName}', end='...', flush=True)
     allowed_codes = [500, 503]
     content_type = 'b2/x-auto'
-    file_path_name_encoded = urllib.parse.quote(filePathName)
-
-    # we trim backslash in order to create right directories structure on B2 Cloud
-    if file_path_name_encoded[0] == '/':
-        file_path_name_encoded = file_path_name_encoded[1:]
 
     with open(filePathName, 'br') as file:
         file_data = file.read()
@@ -185,7 +188,7 @@ def b2_upload_file_callback(filePathName: str) -> None:
 
     headers = {
         'Authorization': authTokenUpload,
-        'X-Bz-File-Name': file_path_name_encoded,
+        'X-Bz-File-Name': _prepare_file_name(filePathName),
         'Content-Type': content_type,
         'X-Bz-Content-Sha1': file_hash
     }
