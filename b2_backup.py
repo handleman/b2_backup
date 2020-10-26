@@ -52,7 +52,7 @@ def _send_file(url: str, headers: dict, body: bytes, errorCallback: Callable[[di
         return json.loads(response_data)
     except HTTPError as err:
         if err.code in allowed_codes:
-            print('[ HTTPError, reiastablishing connection... ]')
+            print('[ HTTPError, reistablishing connection... ]')
             errorCallback(headers, body)
 
 
