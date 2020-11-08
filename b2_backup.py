@@ -17,13 +17,15 @@ authToken: str = None
 apiUrl: str = None
 bucketId: str = None
 
+
 def _prepare_file_name(path: str) -> str:
-    full_name_encoded = urllib.parse.quote(path)
-     # we trim backslash in order to create right directories structure on B2 Cloud
+    full_name_encoded = path
     if full_name_encoded[0] == '/':
         full_name_encoded = full_name_encoded[1:]
+    elif full_name_encoded[0] == '.' and full_name_encoded[1] ==  '/':
+        full_name_encoded = full_name_encoded[2:]
+
     return full_name_encoded
-    
 
 
 def _request_data(url: str, headers: dict, body={}) -> dict:
@@ -43,7 +45,7 @@ def _request_data(url: str, headers: dict, body={}) -> dict:
 
 def _send_file(url: str, headers: dict, body: bytes, errorCallback: Callable[[dict, bytes], dict]) -> dict:
     request = Request(url, data=body, headers=headers)
-    allowed_codes = [500, 503, 401]
+    allowed_codes = [500, 503, 401, 408]
     try:
         with urlopen(request) as response:
             response_data = response.read()
@@ -52,7 +54,7 @@ def _send_file(url: str, headers: dict, body: bytes, errorCallback: Callable[[di
         return json.loads(response_data)
     except HTTPError as err:
         if err.code in allowed_codes:
-            print('[ HTTPError, reistablishing connection... ]')
+            print(f'[ HTTPError for {url}, reistablishing connection... ]')
             errorCallback(headers, body)
 
 
@@ -131,12 +133,15 @@ def b2_upload_part(apiUrlPart: str, authTokenPart: str, fileName: str, fileSize:
     global apiUrl, authToken
     chunk_size = 536870912  # ~ 500 MiB
     total_bytes_sent = 0
-    part_no = 1
+    part_no = 0
     part_sha1_array = []
     part_size = chunk_size
     parts_deploy_status = []
 
     def _retry_upload(headers: dict, chunk: bytes) -> dict:
+        print(f'Retry initiated')
+        print(f' headers before : {json.dumps(headers)}')
+
         uploadLargeFileSettings = b2_get_upload_part_url(
             apiUrl, authToken, fileId)
 
@@ -144,6 +149,8 @@ def b2_upload_part(apiUrlPart: str, authTokenPart: str, fileName: str, fileSize:
         uploadPartToken = uploadLargeFileSettings['authorizationToken']
 
         headers['Authorization'] = uploadPartToken
+        print(f' headers after : {json.dumps(headers)}')
+        print(f' url {uploadPartUrl}')
         return _send_file(uploadPartUrl, headers, chunk, _retry_upload)
 
     print(f'[ Upload in progress ]: {fileName} total file size : {fileSize}')
@@ -153,6 +160,7 @@ def b2_upload_part(apiUrlPart: str, authTokenPart: str, fileName: str, fileSize:
                 residue = fileSize - total_bytes_sent
                 if(residue < chunk_size):
                     part_size = residue
+                part_no += 1
                 print(
                     f'[PARTIAL UPLOAD] chunk # {part_no}, size: {part_size}  in progress', end='...', flush=True)
                 hash = hashlib.sha1(chunk).hexdigest()
@@ -169,9 +177,8 @@ def b2_upload_part(apiUrlPart: str, authTokenPart: str, fileName: str, fileSize:
                     apiUrlPart, headers, chunk, _retry_upload)
                 parts_deploy_status.append(deploy_status)
                 total_bytes_sent = total_bytes_sent + part_size
-                print(f'<- total bytes sent: {total_bytes_sent} - [DONE]')
-                part_no += 1
-
+                
+    print(f'<- total bytes sent: {total_bytes_sent} in {part_no} parts')
     return {'deploy_status': parts_deploy_status, 'sha1': part_sha1_array}
 
 
@@ -197,7 +204,7 @@ def b2_upload_file_callback(filePathName: str) -> None:
 
     headers = {
         'Authorization': authTokenUpload,
-        'X-Bz-File-Name': _prepare_file_name(filePathName),
+        'X-Bz-File-Name': _prepare_file_name(urllib.parse.quote(filePathName)),
         'Content-Type': content_type,
         'X-Bz-Content-Sha1': file_hash
     }
@@ -237,7 +244,7 @@ def b2_upload_large_file_callback(filePathName: str, fileSize: int) -> None:
 def applyForFile(filesPath: str, small_file_callback: Callable[[str], None], huge_file_callback: Callable[[str], None]) -> None:
     excludes = ['.DS_Store', '.Trashes', '.fseventsd',
                 '.Spotlight-V100', 'desktop.ini', 'Desktop.ini']
-    size_delimeter = 2147483647  # ~ 2GiB maximum file size restriction
+    size_delimeter = 536870912  # ~ 500 MiB maximum file size restriction
 
     for root, directories, files in os.walk(filesPath):
         for name in files:
